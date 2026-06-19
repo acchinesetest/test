@@ -1,3 +1,76 @@
+// ISI DENGAN API URL DARI SHEETDB ANDA
+const API_URL = "https://sheetdb.io/api/v1/kqbloih2ovz7u"; 
+
+async function validasiAkses() {
+    // 1. Ambil atau buat ID unik untuk perangkat ini
+    let deviceId = localStorage.getItem("quiz_device_token");
+    if (!deviceId) {
+        deviceId = "DEV-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+        localStorage.setItem("quiz_device_token", deviceId);
+    }
+
+    // 2. Minta input kode dari user
+    let inputKode = prompt("Latihan Soal HSK 1.\nMasukkan Kode Akses Unik Anda:");
+    if (!inputKode) {
+        blokirAkses("Kode akses wajib diisi!");
+        return;
+    }
+    inputKode = inputKode.trim().toUpperCase();
+
+    try {
+        // 3. Cek kode ke Google Sheets via SheetDB
+        let response = await fetch(`${API_URL}/search?kode=${inputKode}`);
+        let data = await response.json();
+
+        if (data.length === 0) {
+            blokirAkses("Kode Akses Tidak Valid / Tidak Terdaftar!");
+            return;
+        }
+
+        let dataKode = data[0];
+
+        // Kasus A: Kode belum pernah dipakai sama sekali
+        if (!dataKode.status || dataKode.status === "") {
+            // Kunci kode ini ke perangkat sekarang
+            await fetch(`${API_URL}/kode/${inputKode}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ "status": "used", "device_id": deviceId })
+            });
+            alert("Aktivasi Sukses! Kode ini sekarang terkunci di perangkat Anda.");
+            return; // Lolos masuk kuis
+        }
+
+        // Kasus B: Kode sudah pernah dipakai, cek apakah perangkatnya sama
+        if (dataKode.status === "used") {
+            if (dataKode.device_id === deviceId) {
+                // Perangkat sama (murid yang sama sedang membuka ulang kuis)
+                return; // Lolos masuk kuis
+            } else {
+                // Perangkat berbeda (artinya kode ini dibagikan ke orang lain!)
+                blokirAkses("Gagal! Kode akses ini sudah hangus / digunakan di perangkat lain.");
+            }
+        }
+
+    } catch (error) {
+        blokirAkses("Gagal terhubung ke server validasi.");
+    }
+}
+
+function blokirAkses(pesan) {
+    alert(pesan);
+    document.body.innerHTML = `
+        <div style="text-align:center; margin-top:100px; font-family:sans-serif; padding:20px;">
+            <h2>Akses Ditolak 🔒</h2>
+            <p>${pesan}</p>
+            <p style="color:#595959;">Satu kode akses hanya berlaku untuk satu perangkat HP/Laptop.</p>
+        </div>
+    `;
+    window.stop();
+}
+
+// Jalankan sistem proteksi sebelum kuis dimulai
+validasiAkses();
 <!DOCTYPE html>
 <html lang="id">
 <head>
